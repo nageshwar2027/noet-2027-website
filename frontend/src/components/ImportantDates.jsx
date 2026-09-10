@@ -20,7 +20,7 @@ const ImportantDates = () => {
             <span style={{fontSize: '1.5rem'}}>📢</span> Announcements
           </h3>
           <p style={{margin: '0.5rem 0 0 0', color: 'var(--text-color)'}}>
-            No changes in future dates currently. Please check this section regularly for updates regarding abstract submissions and registration deadlines.
+            Dates shown here follow the official NOET-2027 conference brochure. Please check this website for future notices or revisions.
           </p>
         </div>
         <h2 className="fade-in-up">Important Dates</h2>

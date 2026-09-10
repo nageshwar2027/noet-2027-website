@@ -15,6 +15,11 @@ const Footer = () => {
           dnvvkonda@iitism.ac.in | +91-9471192194</p>
         </div>
         <div className="footer-section">
+          <h3>Conference Correspondence</h3>
+          <p><strong>NOET-2027 Secretariat</strong><br/>n0et@iitism.ac.in</p>
+          <p><a href="https://www.iitism.ac.in/chemical-engineering-home" target="_blank" rel="noopener noreferrer">Department of Chemical Engineering ↗</a></p>
+        </div>
+        <div className="footer-section">
           <h3>Venue</h3>
           <p>Department of Chemical Engineering<br/>
           IIT (ISM) Dhanbad<br/>
@@ -22,7 +27,7 @@ const Footer = () => {
         </div>
       </div>
       <div className="footer-bottom">
-        <p>&copy; 2026-2027 N0ET Conference. All rights reserved.</p>
+        <p>&copy; 2026-2027 NOET Conference. All rights reserved.</p>
       </div>
     </footer>
   );
