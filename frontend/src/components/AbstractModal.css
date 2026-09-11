@@ -156,10 +156,17 @@
 }
 
 .file-input-wrapper input[type="file"] {
-  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
 }
 
 .file-input-label {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -181,6 +188,10 @@
 .file-icon {
   font-size: 2rem;
   color: var(--highlight-color);
+}
+
+.file-input-label {
+  pointer-events: none;
 }
 
 .file-input-label span:nth-child(2) {
