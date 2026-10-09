@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import './Registration.css';
-import { API_BASE_URL } from '../config.js';
+import { API_BASE_URL, warmupBackend } from '../config.js';
 
 const Registration = () => {
   const [formData, setFormData] = useState({
     full_name: '', email: '', institution: '', payment_mode: '', participant_type: 'Others', transaction_id: ''
   });
   const [status, setStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setFormData({...formData, [e.target.name]: e.target.value});
@@ -14,21 +15,72 @@ const Registration = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus('Submitting...');
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setStatus('Submitting registration...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    // Progressive status updates for slower cloud backend wake-ups
+    const stage1Timer = setTimeout(() => {
+      setStatus('Connecting to server (cloud instance may be starting up, please wait)...');
+    }, 4000);
+    const stage2Timer = setTimeout(() => {
+      setStatus('Still processing with server, almost done...');
+    }, 18000);
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        signal: controller.signal,
       });
-      if(response.ok) {
+
+      clearTimeout(stage1Timer);
+      clearTimeout(stage2Timer);
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
         setStatus('Registration successful!');
-        setFormData({full_name: '', email: '', institution: '', payment_mode: '', participant_type: 'Others', transaction_id: ''});
+        setFormData({
+          full_name: '',
+          email: '',
+          institution: '',
+          payment_mode: '',
+          participant_type: 'Others',
+          transaction_id: '',
+        });
       } else {
-        setStatus('Failed to register. Please try again.');
+        let errorMsg = 'Failed to register. Please try again.';
+        try {
+          const errData = await response.json();
+          if (errData && typeof errData === 'object') {
+            const firstKey = Object.keys(errData)[0];
+            const val = errData[firstKey];
+            if (Array.isArray(val) && val.length > 0) {
+              errorMsg = `${firstKey.replace('_', ' ')}: ${val[0]}`;
+            } else if (typeof val === 'string') {
+              errorMsg = val;
+            }
+          }
+        } catch (_) {}
+        setStatus(errorMsg);
       }
-    } catch(err) {
-      setStatus('Error connecting to server.');
+    } catch (err) {
+      clearTimeout(stage1Timer);
+      clearTimeout(stage2Timer);
+      clearTimeout(timeoutId);
+
+      if (err.name === 'AbortError') {
+        setStatus('Request timed out. The server took too long to respond. Please try again.');
+      } else {
+        setStatus('Error connecting to server. Please check your internet connection and try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -90,7 +142,7 @@ const Registration = () => {
 
           <div className="registration-form glass fade-in-up delay-1">
             <h3>Register Now</h3>
-            <form onSubmit={handleSubmit} className="form">
+            <form onSubmit={handleSubmit} onFocus={warmupBackend} className="form">
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="full_name">Full Name *</label>
@@ -129,7 +181,13 @@ const Registration = () => {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary btn-submit">Submit Registration</button>
+              <button
+                type="submit"
+                className="btn btn-primary btn-submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Submitting Registration...' : 'Submit Registration'}
+              </button>
               {status && <p className="status-msg">{status}</p>}
             </form>
           </div>
