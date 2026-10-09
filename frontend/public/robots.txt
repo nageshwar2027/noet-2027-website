@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://noet-2027-website.vercel.app/sitemap.xml
