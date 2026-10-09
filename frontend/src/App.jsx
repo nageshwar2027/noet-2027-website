@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import InfoBar from './components/InfoBar';
@@ -9,8 +9,14 @@ import Committees from './components/Committees';
 import Registration from './components/Registration';
 import Footer from './components/Footer';
 import FloatingActions from './components/FloatingActions';
+import { warmupBackend } from './config';
 
 function App() {
+  useEffect(() => {
+    // Non-blocking background warm-up ping to wake Render backend
+    warmupBackend();
+  }, []);
+
   return (
     <div className="app">
       <Header />
