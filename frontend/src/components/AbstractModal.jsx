@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './AbstractModal.css';
-import { API_BASE_URL } from '../config.js';
+import { API_BASE_URL, warmupBackend } from '../config.js';
 
 const AbstractModal = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
@@ -10,6 +10,13 @@ const AbstractModal = ({ isOpen, onClose }) => {
   });
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      warmupBackend();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -23,10 +30,29 @@ const AbstractModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!file) {
       setStatus('Please upload an abstract document.');
       return;
     }
+
+    setIsSubmitting(true);
+    setStatus('Preparing and uploading abstract document...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    // Progressive status updates for slower cloud backend wake-ups & storage uploads
+    const stage1Timer = setTimeout(() => {
+      setStatus('Connecting to cloud server (instance waking up, please wait)...');
+    }, 4000);
+    const stage2Timer = setTimeout(() => {
+      setStatus('Uploading document to cloud storage (this may take a few moments)...');
+    }, 12000);
+    const stage3Timer = setTimeout(() => {
+      setStatus('Finalizing submission with server...');
+    }, 25000);
 
     const submitData = new FormData();
     submitData.append('name', formData.name);
@@ -34,13 +60,18 @@ const AbstractModal = ({ isOpen, onClose }) => {
     submitData.append('institution', formData.institution);
     submitData.append('document', file);
 
-    setStatus('Submitting...');
     try {
       const response = await fetch(`${API_BASE_URL}/api/submit-abstract/`, {
         method: 'POST',
         body: submitData,
+        signal: controller.signal,
       });
-      
+
+      clearTimeout(stage1Timer);
+      clearTimeout(stage2Timer);
+      clearTimeout(stage3Timer);
+      clearTimeout(timeoutId);
+
       if (response.ok) {
         setStatus('Abstract submitted successfully!');
         setFormData({ name: '', email: '', institution: '' });
@@ -50,11 +81,36 @@ const AbstractModal = ({ isOpen, onClose }) => {
           setStatus('');
         }, 2000);
       } else {
-        const errorData = await response.json();
-        setStatus(errorData.error || 'Submission failed. Please try again.');
+        let errorMsg = 'Submission failed. Please try again.';
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMsg = errorData.error;
+          } else if (errorData && typeof errorData === 'object') {
+            const firstKey = Object.keys(errorData)[0];
+            const val = errorData[firstKey];
+            if (Array.isArray(val) && val.length > 0) {
+              errorMsg = `${firstKey.replace('_', ' ')}: ${val[0]}`;
+            } else if (typeof val === 'string') {
+              errorMsg = val;
+            }
+          }
+        } catch (_) {}
+        setStatus(errorMsg);
       }
     } catch (err) {
-      setStatus('Error connecting to the server.');
+      clearTimeout(stage1Timer);
+      clearTimeout(stage2Timer);
+      clearTimeout(stage3Timer);
+      clearTimeout(timeoutId);
+
+      if (err.name === 'AbortError') {
+        setStatus('Request timed out while uploading. Please check your internet connection or file size and try again.');
+      } else {
+        setStatus('Error connecting to the server. Please check your internet connection and try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -121,7 +177,13 @@ const AbstractModal = ({ isOpen, onClose }) => {
             </div>
           </div>
           
-          <button type="submit" className="btn btn-primary btn-submit">Submit Abstract</button>
+          <button
+            type="submit"
+            className="btn btn-primary btn-submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Uploading & Submitting...' : 'Submit Abstract'}
+          </button>
           {status && <p className="status-msg">{status}</p>}
         </form>
       </div>
