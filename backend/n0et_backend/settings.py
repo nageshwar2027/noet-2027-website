@@ -23,7 +23,7 @@ def env_list(name: str, default: str = "") -> list[str]:
 # Core / security
 # ---------------------------------------------------------------------------
 DJANGO_SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
-DEBUG = env_bool("DJANGO_DEBUG", True)
+DEBUG = env_bool("DJANGO_DEBUG", False)
 
 if not DEBUG and not DJANGO_SECRET_KEY:
     raise RuntimeError("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is False.")
