@@ -181,6 +181,13 @@
   margin-top: 1rem;
 }
 
+.btn-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  filter: grayscale(0.2);
+}
+
 .status-msg {
   margin-top: 1rem;
   text-align: center;
