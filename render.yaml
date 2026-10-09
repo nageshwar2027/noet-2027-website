@@ -32,5 +32,8 @@ services:
         sync: false
       - key: SUPABASE_STORAGE_BUCKET
         sync: false
-      - key: SUPABASE_STORAGE_REGION\n        sync: false\n      - key: SUPABASE_STORAGE_ENDPOINT_URL
+      - key: SUPABASE_STORAGE_REGION
         sync: false
+      - key: SUPABASE_STORAGE_ENDPOINT_URL
+        sync: false
+
