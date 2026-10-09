@@ -6,7 +6,19 @@ from django.conf.urls.static import static
 
 
 def health(request):
-    return JsonResponse({"status": "ok"})
+    data = {"status": "ok"}
+    if request.GET.get("db") == "1":
+        try:
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1;")
+                cursor.fetchone()
+            data["database"] = "ok"
+        except Exception:
+            data["status"] = "degraded"
+            data["database"] = "unavailable"
+            return JsonResponse(data, status=503)
+    return JsonResponse(data)
 
 
 urlpatterns = [
