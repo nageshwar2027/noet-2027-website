@@ -23,7 +23,7 @@ def env_list(name: str, default: str = "") -> list[str]:
 # Core / security
 # ---------------------------------------------------------------------------
 DJANGO_SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
-DEBUG = env_bool("DJANGO_DEBUG", True)
+DEBUG = env_bool("DJANGO_DEBUG", False)
 
 if not DEBUG and not DJANGO_SECRET_KEY:
     raise RuntimeError("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is False.")
@@ -34,6 +34,12 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if render_hostname and render_hostname not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(render_hostname)
+
+railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
+if railway_domain and railway_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(railway_domain)
+
+
 
 # ---------------------------------------------------------------------------
 # Application definition
@@ -55,7 +61,6 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -162,29 +167,30 @@ STORAGES = {
 }
 
 # ---------------------------------------------------------------------------
-# Supabase Storage (S3-compatible)
+# Cloudflare R2 / S3-compatible Object Storage
 # ---------------------------------------------------------------------------
-# When all R2 variables are present, Django's FileField stores uploaded
-# abstracts in R2 and FileField.url returns a time-limited signed URL. Without
-# those variables, local filesystem storage is used for development.
-SUPABASE_STORAGE_ACCESS_KEY_ID = os.environ.get("SUPABASE_STORAGE_ACCESS_KEY_ID", "")
-SUPABASE_STORAGE_SECRET_ACCESS_KEY = os.environ.get("SUPABASE_STORAGE_SECRET_ACCESS_KEY", "")
-SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "")
-SUPABASE_STORAGE_ENDPOINT_URL = os.environ.get("SUPABASE_STORAGE_ENDPOINT_URL", "")
+# Supports both R2_* and legacy SUPABASE_STORAGE_* environment variables.
+# When configured, Django's FileField stores uploaded abstracts in cloud object
+# storage and FileField.url returns a time-limited signed URL.
+STORAGE_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID") or os.environ.get("SUPABASE_STORAGE_ACCESS_KEY_ID", "")
+STORAGE_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY") or os.environ.get("SUPABASE_STORAGE_SECRET_ACCESS_KEY", "")
+STORAGE_BUCKET = os.environ.get("R2_BUCKET") or os.environ.get("SUPABASE_STORAGE_BUCKET", "")
+STORAGE_ENDPOINT_URL = os.environ.get("R2_ENDPOINT_URL") or os.environ.get("SUPABASE_STORAGE_ENDPOINT_URL", "")
+STORAGE_REGION = os.environ.get("R2_REGION") or os.environ.get("SUPABASE_STORAGE_REGION", "auto")
 
-USE_SUPABASE_STORAGE = all(
-    [SUPABASE_STORAGE_ACCESS_KEY_ID, SUPABASE_STORAGE_SECRET_ACCESS_KEY, SUPABASE_STORAGE_BUCKET, SUPABASE_STORAGE_ENDPOINT_URL]
+USE_REMOTE_STORAGE = all(
+    [STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY, STORAGE_BUCKET, STORAGE_ENDPOINT_URL]
 )
 
-if USE_SUPABASE_STORAGE:
+if USE_REMOTE_STORAGE:
     STORAGES["default"] = {
         "BACKEND": "storages.backends.s3.S3Storage",
     }
-    AWS_ACCESS_KEY_ID = SUPABASE_STORAGE_ACCESS_KEY_ID
-    AWS_SECRET_ACCESS_KEY = SUPABASE_STORAGE_SECRET_ACCESS_KEY
-    AWS_STORAGE_BUCKET_NAME = SUPABASE_STORAGE_BUCKET
-    AWS_S3_ENDPOINT_URL = SUPABASE_STORAGE_ENDPOINT_URL
-    AWS_S3_REGION_NAME = os.environ.get("SUPABASE_STORAGE_REGION", "")
+    AWS_ACCESS_KEY_ID = STORAGE_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY = STORAGE_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME = STORAGE_BUCKET
+    AWS_S3_ENDPOINT_URL = STORAGE_ENDPOINT_URL
+    AWS_S3_REGION_NAME = STORAGE_REGION
     AWS_S3_SIGNATURE_VERSION = "s3v4"
     AWS_DEFAULT_ACL = None
     AWS_S3_FILE_OVERWRITE = False
@@ -192,19 +198,31 @@ if USE_SUPABASE_STORAGE:
     AWS_QUERYSTRING_EXPIRE = 3600
     AWS_S3_ADDRESSING_STYLE = "path"
 else:
+    if not DEBUG:
+        raise RuntimeError(
+            "Production file storage is not configured! Cloudflare R2 / S3 credentials "
+            "(R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_ENDPOINT_URL) "
+            "must be provided when DJANGO_DEBUG=false to avoid silent data loss on ephemeral storage."
+        )
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     }
+
 
 # ---------------------------------------------------------------------------
 # Cross-origin access
 # ---------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173",
+    "http://localhost:5173,http://127.0.0.1:5173,https://noet-2027-website.vercel.app",
 )
 
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
+if railway_domain:
+    csrf_railway = f"https://{railway_domain}"
+    if csrf_railway not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(csrf_railway)
+
 
 # ---------------------------------------------------------------------------
 # Email
